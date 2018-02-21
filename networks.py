@@ -96,9 +96,8 @@ class KernelDecoder(nn.Module):
 
 
 class MotionDecoder(nn.Module):
-    def __init__(self, scales, channels, kernel_sizes):
+    def __init__(self, channels, kernel_sizes):
         super(MotionDecoder, self).__init__()
-        self.scales = scales
         self.channels = channels
         self.kernel_sizes = kernel_sizes
 
@@ -110,11 +109,6 @@ class MotionDecoder(nn.Module):
         self.apply(weights_init)
 
     def forward(self, inputs):
-        for k, input in enumerate(inputs):
-            scale_factor = int(self.scales[-1] / self.scales[k])
-            if scale_factor != 1:
-                inputs[k] = F.upsample(input, scale_factor = scale_factor, mode = 'nearest')
-
         inputs = torch.cat(inputs, 1)
         outputs = self.decoder.forward(inputs)
         return outputs
@@ -147,8 +141,7 @@ class VDNet(nn.Module):
             kernel_sizes = 5
         )
         self.motion_decoder = MotionDecoder(
-            scales = scales,
-            channels = [len(scales) * 32, 128, 128, 3],
+            channels = [128, 128, 128, 3],
             kernel_sizes = [9, 1, 1]
         )
         self.apply(weights_init)
@@ -174,11 +167,16 @@ class VDNet(nn.Module):
         kernels = self.kernel_decoder.forward(z)
 
         # cross convolution
-        for i, feature in enumerate(features):
-            kernel = kernels[:, i, ...].contiguous()
+        for k, feature in enumerate(features):
+            kernel = kernels[:, k, ...].contiguous()
             padding = (kernel.size(-1) - 1) // 2
             num_groups = feature.size(1) // kernel.size(2)
-            features[i] = conv_cross2d(feature, kernel, padding = padding, groups = num_groups)
+            features[k] = conv_cross2d(feature, kernel, padding = padding, groups = num_groups)
+
+        for k, feature in enumerate(features):
+            scale_factor = int(self.scales[-1] / self.scales[k])
+            if scale_factor != 1:
+                features[k] = F.upsample(feature, scale_factor = scale_factor, mode = 'nearest')
 
         # motion decoder
         outputs = self.motion_decoder.forward(features)
