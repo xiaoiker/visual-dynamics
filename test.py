@@ -33,7 +33,7 @@ def analyze_fmaps(size = 256):
         num_scales, num_channels = len(features), features[0].size(1)
 
         for s in trange(num_scales):
-            input, feature = inputs[0][s], features[s]
+            input, feature = inputs[0][-1], features[s]
 
             for b in trange(args.batch, leave = False):
                 image = resize_image(to_np(input[b]), size = size, channel_first = True)
